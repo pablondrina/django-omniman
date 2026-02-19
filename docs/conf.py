@@ -20,8 +20,8 @@ django.setup()
 project = "Omniman"
 copyright = "2025, Omniman Contributors"
 author = "Omniman Contributors"
-release = "0.5.9"
-version = "0.5"
+release = "0.1.0a1"
+version = "0.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -53,7 +53,7 @@ html_theme_options = {
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
     "top_of_page_button": "edit",
-    "source_repository": "https://github.com/your-org/omniman",
+    "source_repository": "https://github.com/pablondrina/django-omniman",
     "source_branch": "main",
     "source_directory": "docs/",
 }

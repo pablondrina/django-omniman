@@ -90,7 +90,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/pablondrina/django-omniman"
-Documentation = "https://django-omniman.readthedocs.io"
+Documentation = "https://pablondrina.github.io/django-omniman"
 Repository = "https://github.com/pablondrina/django-omniman"
 Changelog = "https://github.com/pablondrina/django-omniman/blob/main/CHANGELOG.md"
 Issues = "https://github.com/pablondrina/django-omniman/issues"

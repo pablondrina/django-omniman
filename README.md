@@ -212,7 +212,7 @@ REST_FRAMEWORK = {
 
 ## Documentation
 
-Full documentation: [django-omniman.readthedocs.io](https://django-omniman.readthedocs.io)
+Full documentation: [pablondrina.github.io/django-omniman](https://pablondrina.github.io/django-omniman)
 
 ## Requirements
 
