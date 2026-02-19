@@ -13,9 +13,13 @@
 Session (mutable) → Order (immutable) → Directive (async)
 ```
 
-## Philosophy (SIREL):
+## Philosophy
 
-Every decision follows three core principles:
+> **Warning**: Omniman is extremely flexible. This flexibility can lead to incorrect
+> implementations if you don't understand the contracts below.
+> [Full philosophy and invariants](https://pablondrina.github.io/django-omniman/concepts/philosophy.html).
+
+Every decision follows **SIREL**:
 
 | Principle | Question |
 |-----------|----------|
@@ -23,19 +27,26 @@ Every decision follows three core principles:
 | **(R)obust** | What if this runs twice? What if data is stale? |
 | **(EL)egant** | Is the API intuitive? Does it follow Django patterns? |
 
-### Practical Corollaries
+### The Three Contracts
 
-From SIREL, two practical mandates emerge:
+**1. Kernel is headless and agnostic.** No opinions on your catalog, customers, UI, or payment provider. Channels abstract away origin differences.
 
-**Agnostic**: Omniman makes no assumptions about your stack.
-- No opinions on your product catalog, customer model, or frontend
-- Works with any payment provider, stock system, or notification service
-- Channels abstract away origin differences (POS, e-commerce, marketplace)
+**2. Everything goes through Services.** Never modify Session fields directly. `ModifyService` increments `rev`, invalidates stale checks, and runs Modifiers. Skipping it breaks consistency guarantees.
 
-**Flexible**: Extend, replace, or ignore any part.
-- Protocol-based extensibility — implement the interface, plug it in
-- Contrib modules are optional — use ours or bring your own
-- No vendor lock-in — the kernel has zero external service dependencies
+**3. Side effects are Directives.** Stock reservations, payments, notifications — all happen asynchronously via Directives with at-least-once semantics. Handlers **must** be idempotent.
+
+### Common Mistakes
+
+| Mistake | What breaks | Do this instead |
+|---------|-------------|-----------------|
+| Modify Session without `ModifyService` | `rev` doesn't increment, checks stay stale | Always use `ModifyService.modify_session()` |
+| Commit without `idempotency_key` | Duplicate orders on retry | Always pass `idempotency_key` in production |
+| IO in Validators or Modifiers | Unpredictable failures, untestable code | Validators are pure gates; Modifiers are pure transforms |
+| Non-idempotent Directive handler | Duplicate stock moves, double charges | Check if already processed before acting |
+| Ignore `pricing_policy` in Modifier | External prices silently overwritten | Check `session.pricing_policy` before repricing |
+| Write checks without `expected_rev` | Race conditions in concurrent edits | Use `SessionWriteService.write_check(expected_rev=...)` |
+
+The kernel enforces [14 invariants](https://pablondrina.github.io/django-omniman/concepts/invariants.html) — if your code violates any, it's a bug.
 
 ## What Omniman IS
 
