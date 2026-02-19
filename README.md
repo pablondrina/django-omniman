@@ -13,15 +13,15 @@
 Session (mutable) → Order (immutable) → Directive (async)
 ```
 
-## Philosophy: SIREL
+## Philosophy (SIREL):
 
 Every decision follows three core principles:
 
 | Principle | Question |
 |-----------|----------|
-| **Simple** | Can this be done simpler? |
-| **Robust** | What if this runs twice? What if data is stale? |
-| **Elegant** | Is the API intuitive? Does it follow Django patterns? |
+| **(SI)mple** | Can this be done simpler? |
+| **(R)obust** | What if this runs twice? What if data is stale? |
+| **(EL)egant** | Is the API intuitive? Does it follow Django patterns? |
 
 ### Practical Corollaries
 
