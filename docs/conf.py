@@ -27,6 +27,7 @@ version = "0.1"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "myst_parser",                  # Markdown support
     "sphinx.ext.autodoc",           # Auto-document code
     "sphinx.ext.napoleon",          # Google/NumPy docstrings
     "sphinx.ext.intersphinx",       # Links to Django docs
@@ -36,8 +37,14 @@ extensions = [
     "sphinxcontrib.httpdomain",     # REST API docs
 ]
 
+# Allow both .rst and .md
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
+
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "*.md"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The master toctree document
 master_doc = "index"

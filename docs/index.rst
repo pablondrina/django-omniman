@@ -33,30 +33,57 @@ What Omniman is NOT
 .. warning::
 
    Omniman is extremely flexible. This flexibility can lead to incorrect implementations
-   if you don't understand the philosophy. **Read the Philosophy section before coding.**
+   if you don't understand the contracts below and the :doc:`14 invariants <concepts/invariants>`.
 
 
-Quick Start
------------
+The Three Contracts
+-------------------
 
-.. code-block:: bash
+**1. Kernel is headless and agnostic.**
+No opinions on your catalog, customers, UI, or payment provider.
+Channels abstract away origin differences (POS, e-commerce, marketplace).
 
-   pip install django-omniman
+**2. Everything goes through Services.**
+Never modify Session fields directly.
+``ModifyService`` increments ``rev``, invalidates stale checks, and runs Modifiers.
+Skipping it breaks consistency guarantees.
 
-.. code-block:: python
+**3. Side effects are Directives.**
+Stock reservations, payments, notifications — all happen asynchronously via Directives
+with at-least-once semantics. Handlers **must** be idempotent.
 
-   # settings.py
-   INSTALLED_APPS = [
-       "unfold",
-       "rest_framework",
-       "omniman",
-   ]
 
-.. code-block:: bash
+Common Mistakes
+^^^^^^^^^^^^^^^
 
-   python manage.py migrate
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
 
-See :doc:`getting-started/quickstart` for a complete example.
+   * - Mistake
+     - What breaks
+     - Do this instead
+   * - Modify Session without ``ModifyService``
+     - ``rev`` doesn't increment, checks stay stale
+     - Always use ``ModifyService.modify_session()``
+   * - Commit without ``idempotency_key``
+     - Duplicate orders on retry
+     - Always pass ``idempotency_key`` in production
+   * - IO in Validators or Modifiers
+     - Unpredictable failures, untestable code
+     - Validators are pure gates; Modifiers are pure transforms
+   * - Non-idempotent Directive handler
+     - Duplicate stock moves, double charges
+     - Check if already processed before acting
+   * - Ignore ``pricing_policy`` in Modifier
+     - External prices silently overwritten
+     - Check ``session.pricing_policy`` before repricing
+   * - Write checks without ``expected_rev``
+     - Race conditions in concurrent edits
+     - Use ``SessionWriteService.write_check(expected_rev=...)``
+
+See :doc:`concepts/philosophy` for the full design principles (P1-P5), anti-patterns, and decision checklist.
+See :doc:`concepts/invariants` for the 14 inviolable system contracts with code examples.
 
 
 Philosophy: SIREL
@@ -93,6 +120,29 @@ Core Flow
 3. **Directive**: Async tasks for side effects (stock, payment, notifications).
 
 
+Quick Start
+-----------
+
+.. code-block:: bash
+
+   pip install django-omniman
+
+.. code-block:: python
+
+   # settings.py
+   INSTALLED_APPS = [
+       "unfold",
+       "rest_framework",
+       "omniman",
+   ]
+
+.. code-block:: bash
+
+   python manage.py migrate
+
+See :doc:`getting-started/quickstart` for a complete example.
+
+
 Table of Contents
 -----------------
 
@@ -103,6 +153,17 @@ Table of Contents
    getting-started/installation
    getting-started/quickstart
    getting-started/tutorial
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Concepts
+
+   concepts/philosophy
+   concepts/invariants
+   concepts/channels
+   concepts/sessions
+   concepts/orders
+   concepts/directives
 
 .. toctree::
    :maxdepth: 2
@@ -135,6 +196,7 @@ Table of Contents
    :caption: API Reference
 
    api/models
+   api/services
    api/rest-api
    api/exceptions
 
