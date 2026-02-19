@@ -1,0 +1,9 @@
+# Sphinx documentation dependencies
+sphinx>=7.2.0
+furo>=2024.1.0
+sphinx-copybutton>=0.5.2
+sphinxcontrib-httpdomain>=1.8.1
+
+# Django (for autodoc)
+Django>=5.0
+djangorestframework>=3.15

@@ -1,0 +1,23 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+include pyproject.toml
+
+recursive-include omniman/templates *
+recursive-include omniman/static *
+recursive-include omniman/locale *.po *.mo
+recursive-include omniman/contrib/*/templates *
+recursive-include omniman/contrib/*/static *
+recursive-include omniman/contrib/*/migrations *.py
+
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude .git*
+global-exclude *.egg-info
+
+prune docs/_build
+prune .venv
+prune example
+prune specs

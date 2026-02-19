@@ -1,0 +1,223 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-omniman"
+version = "0.1.0a1"
+description = "Headless omnichannel order management hub for Django"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Pablo Valentini", email = "pablondrina@gmail.com"}
+]
+maintainers = [
+    {name = "Pablo Valentini", email = "pablondrina@gmail.com"}
+]
+keywords = [
+    "django",
+    "ecommerce",
+    "orders",
+    "omnichannel",
+    "pos",
+    "point-of-sale",
+    "ifood",
+    "delivery",
+    "rest-api",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "Django>=5.0,<6.0",
+    "djangorestframework>=3.15,<4.0",
+]
+
+[project.optional-dependencies]
+admin = [
+    "django-unfold>=0.49,<1.0",
+]
+unfold = [
+    "django-unfold>=0.49,<1.0",
+]
+stock = [
+    # No external dependencies - uses built-in adapters
+]
+stockman = [
+    "django-stockman>=0.1.3",
+]
+offerman = [
+    "django-offerman>=0.3.0",
+]
+guestman = [
+    "django-guestman>=0.5.0",
+]
+payment = [
+    "stripe>=5.0",
+]
+docs = [
+    "sphinx>=7.2.0",
+    "furo>=2024.1.0",
+    "sphinx-copybutton>=0.5.2",
+    "sphinxcontrib-httpdomain>=1.8.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "django-stubs>=4.0",
+    "djangorestframework-stubs>=3.0",
+]
+all = [
+    "django-omniman[admin,stockman,offerman,guestman,payment,docs,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/pablondrina/django-omniman"
+Documentation = "https://django-omniman.readthedocs.io"
+Repository = "https://github.com/pablondrina/django-omniman"
+Changelog = "https://github.com/pablondrina/django-omniman/blob/main/CHANGELOG.md"
+Issues = "https://github.com/pablondrina/django-omniman/issues"
+
+[tool.setuptools]
+packages = [
+    "omniman",
+    "omniman.api",
+    "omniman.contrib",
+    "omniman.contrib.stock",
+    "omniman.contrib.stock.adapters",
+    "omniman.contrib.pricing",
+    "omniman.contrib.pricing.adapters",
+    "omniman.contrib.payment",
+    "omniman.contrib.payment.adapters",
+    "omniman.contrib.notifications",
+    "omniman.contrib.notifications.backends",
+    "omniman.contrib.refs",
+    "omniman.contrib.refs.migrations",
+    "omniman.management",
+    "omniman.management.commands",
+    "omniman.migrations",
+    "omniman.templatetags",
+    "omniman.tests",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+omniman = [
+    "py.typed",
+    "templates/**/*.html",
+    "static/**/*",
+    "locale/**/*.po",
+    "locale/**/*.mo",
+]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+exclude = [
+    ".eggs",
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "migrations",
+]
+
+[tool.ruff.isort]
+known-first-party = ["omniman"]
+known-third-party = ["django", "rest_framework"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = [
+    "mypy_django_plugin.main",
+    "mypy_drf_plugin.main",
+]
+strict = false
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "example.project.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "example.project.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = [
+    "--strict-markers",
+    "-ra",
+]
+testpaths = ["omniman/tests"]
+
+[tool.coverage.run]
+source = ["omniman"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
