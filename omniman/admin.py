@@ -31,9 +31,15 @@ except ImportError:
     UNFOLD_AVAILABLE = False
     ModelAdmin = admin.ModelAdmin
 
-    # Fallback for filters
-    class ChoicesRadioFilter(admin.SimpleListFilter):
-        """Fallback filter when Unfold is not available."""
+    # Fallback for filters — must inherit FieldListFilter for tuple-style
+    # list_filter entries like ("field", ChoicesRadioFilter) to pass
+    # Django 5.x system checks (admin.E115).
+    class ChoicesRadioFilter(admin.FieldListFilter):
+        """Fallback filter when Unfold is not available.
+
+        Standard Django FieldListFilter — renders as default dropdown.
+        Unfold's version renders radio buttons, but behavior is identical.
+        """
         pass
 
     # Fallback decorators that work with standard Django admin
