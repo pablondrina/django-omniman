@@ -101,8 +101,8 @@ class OrderTransitionTests(TestCase):
 
     def test_transition_from_terminal_status_raises_error(self) -> None:
         """Testa que não é possível transicionar de status terminal."""
-        self.order.status = Order.STATUS_COMPLETED
-        self.order.save()
+        Order.objects.filter(pk=self.order.pk).update(status=Order.STATUS_COMPLETED)
+        self.order.refresh_from_db()
         with self.assertRaises(InvalidTransition) as cm:
             self.order.transition_status(Order.STATUS_PROCESSING, actor="test_user")
         self.assertEqual(cm.exception.code, "terminal_status")

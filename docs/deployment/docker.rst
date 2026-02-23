@@ -186,7 +186,7 @@ Production
 
      worker:
        build: .
-       command: python manage.py process_directives
+       command: python manage.py process_directives --watch --interval 2
        environment:
          - DJANGO_SETTINGS_MODULE=myproject.settings.production
          - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
@@ -197,6 +197,33 @@ Production
          - redis
        deploy:
          replicas: 2
+         restart_policy:
+           condition: on-failure
+           delay: 5s
+           max_attempts: 5
+
+     # Manutenção periódica (cron jobs via container efêmero)
+     # Alternativa: usar cron do host ou um scheduler como ofelia
+     cron:
+       build: .
+       command: >
+         sh -c "
+         while true; do
+           python manage.py cleanup_idempotency_keys --days 7;
+           python manage.py release_expired_holds;
+           sleep 86400;
+         done
+         "
+       environment:
+         - DJANGO_SETTINGS_MODULE=myproject.settings.production
+         - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+         - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+       depends_on:
+         - db
+       deploy:
+         replicas: 1
+         restart_policy:
+           condition: on-failure
 
    volumes:
      postgres_data:

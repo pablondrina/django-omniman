@@ -30,9 +30,11 @@ from typing import Any
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError as DRFValidationError
+from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
+from omniman.conf import get_omniman_setting
 from omniman.models import Channel, Directive, Order, Session
 from omniman.services import CommitService, ModifyService, ResolveService
 from omniman.ids import generate_idempotency_key, generate_session_key
@@ -51,6 +53,17 @@ from .serializers import (
 
 
 logger = logging.getLogger(__name__)
+
+
+# H26: Default pagination for list endpoints.
+# Uses CursorPagination for stable ordering with large datasets.
+class OmnimanCursorPagination(CursorPagination):
+    """Cursor-based pagination for Omniman API endpoints."""
+
+    page_size = 25
+    ordering = "-created_at"
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 def _get_actor(request) -> str:
@@ -95,6 +108,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = Channel.objects.all()
     serializer_class = ChannelSerializer
+    permission_classes = get_omniman_setting("DEFAULT_PERMISSION_CLASSES")
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
@@ -121,6 +135,8 @@ class SessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Cr
 
     queryset = Session.objects.select_related("channel").all()
     serializer_class = SessionSerializer
+    permission_classes = get_omniman_setting("DEFAULT_PERMISSION_CLASSES")
+    pagination_class = OmnimanCursorPagination
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
     lookup_field = "session_key"
@@ -340,6 +356,8 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = Order.objects.select_related("channel").all()
     serializer_class = OrderSerializer
+    permission_classes = get_omniman_setting("DEFAULT_PERMISSION_CLASSES")
+    pagination_class = OmnimanCursorPagination
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
@@ -357,4 +375,6 @@ class DirectiveViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = Directive.objects.all()
     serializer_class = DirectiveSerializer
+    permission_classes = get_omniman_setting("ADMIN_PERMISSION_CLASSES")
+    pagination_class = OmnimanCursorPagination
     throttle_classes = [AnonRateThrottle, UserRateThrottle]

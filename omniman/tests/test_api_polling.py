@@ -1,5 +1,5 @@
 """
-Tests for api/sse module (order polling endpoint).
+Tests for api/polling module (order polling endpoint).
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import json
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 
-from omniman.api.sse import order_stream_view
+from omniman.api.polling import order_stream_view
 from omniman.models import Channel, Order
 
 User = get_user_model()

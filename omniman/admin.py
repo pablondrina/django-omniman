@@ -70,6 +70,8 @@ from .ids import generate_idempotency_key
 from .models import (
     Channel,
     Directive,
+    Fulfillment,
+    FulfillmentItem,
     IdempotencyKey,
     Order,
     OrderEvent,
@@ -327,7 +329,8 @@ class SessionAdmin(ModelAdmin):
                         # Update status to "running" before executing
                         directive.status = "running"
                         directive.attempts += 1
-                        directive.save(update_fields=["status", "attempts", "updated_at"])
+                        directive.started_at = timezone.now()
+                        directive.save(update_fields=["status", "attempts", "started_at", "updated_at"])
 
                         try:
                             handler.handle(
@@ -511,6 +514,9 @@ class SessionAdmin(ModelAdmin):
 
         directive = Directive.objects.create(
             topic=topic,
+            status="running",
+            started_at=timezone.now(),
+            attempts=1,
             payload={
                 "session_key": session.session_key,
                 "channel_code": session.channel.code,
@@ -559,6 +565,9 @@ class SessionAdmin(ModelAdmin):
             # Cria e executa diretiva inline
             directive = Directive.objects.create(
                 topic=topic,
+                status="running",
+                started_at=timezone.now(),
+                attempts=1,
                 payload={
                     "session_key": session.session_key,
                     "channel_code": session.channel.code,
@@ -865,7 +874,7 @@ class OrderAdmin(ModelAdmin):
 
 @admin.register(Directive)
 class DirectiveAdmin(ModelAdmin):
-    list_display = ("topic", "status_badge", "attempts", "available_at", "created_at")
+    list_display = ("topic", "status_badge", "attempts", "available_at", "started_at", "created_at")
     list_filter = (("status", ChoicesRadioFilter), "topic")
     search_fields = (
         "topic",
@@ -892,7 +901,7 @@ class DirectiveAdmin(ModelAdmin):
         ),
         (
             _("Execução"),
-            {"fields": ("attempts", "available_at", "last_error"), "classes": ("tab",)},
+            {"fields": ("attempts", "available_at", "started_at", "last_error"), "classes": ("tab",)},
         ),
         (_("Auditoria"), {"fields": ("created_at", "updated_at"), "classes": ("tab",)}),
     )
@@ -904,6 +913,7 @@ class DirectiveAdmin(ModelAdmin):
         "payload",
         "attempts",
         "available_at",
+        "started_at",
         "last_error",
         "created_at",
         "updated_at",
@@ -943,6 +953,7 @@ class DirectiveAdmin(ModelAdmin):
         Directive.objects.filter(pk=directive.pk).update(
             status="running",
             attempts=models.F("attempts") + 1,
+            started_at=now,
             updated_at=now,
         )
         directive.refresh_from_db()
@@ -1087,4 +1098,62 @@ class IdempotencyKeyAdmin(ModelAdmin):
         label={"em andamento": "warning", "concluído": "success", "falhou": "danger"},
     )
     def status_badge(self, obj: IdempotencyKey) -> str:
+        return obj.get_status_display()
+
+
+# =============================================================================
+# FULFILLMENT ADMIN
+# =============================================================================
+
+
+class FulfillmentItemInline(admin.TabularInline):
+    model = FulfillmentItem
+    extra = 0
+    readonly_fields = ("order_item", "qty")
+    fields = ("order_item", "qty")
+
+
+@admin.register(Fulfillment)
+class FulfillmentAdmin(ModelAdmin):
+    list_display = ("id", "order", "status_badge", "carrier", "tracking_code", "created_at")
+    list_filter = (("status", ChoicesRadioFilter),)
+    search_fields = ("order__ref", "tracking_code", "carrier")
+    ordering = ("-created_at",)
+    date_hierarchy = "created_at"
+    list_filter_submit = True
+    list_fullwidth = True
+    compressed_fields = True
+    inlines = [FulfillmentItemInline]
+
+    fieldsets = (
+        (_("Pedido"), {"fields": ("order", "status"), "classes": ("tab",)}),
+        (
+            _("Rastreio"),
+            {"fields": ("carrier", "tracking_code", "tracking_url"), "classes": ("tab",)},
+        ),
+        (_("Detalhes"), {"fields": ("notes", "meta"), "classes": ("tab",)}),
+        (
+            _("Datas"),
+            {"fields": ("created_at", "shipped_at", "delivered_at"), "classes": ("tab",)},
+        ),
+    )
+    readonly_fields = ("created_at",)
+
+    actions_detail = ["history_detail_action"]
+
+    @action(description=_("Histórico"), url_path="history-action", icon="history")
+    def history_detail_action(self, request, object_id):
+        return history_action(self, request, object_id)
+
+    @display(
+        description=_("status"),
+        label={
+            "pendente": "info",
+            "em andamento": "warning",
+            "enviado": "info",
+            "entregue": "success",
+            "cancelado": "danger",
+        },
+    )
+    def status_badge(self, obj: Fulfillment) -> str:
         return obj.get_status_display()

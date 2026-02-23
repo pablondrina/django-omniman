@@ -186,7 +186,7 @@ class StockHoldHandler:
         message.status = "done" if applied else "failed"
         message.last_error = "" if applied else "stale_rev"
         message.payload["holds"] = check_result.get("holds", [])
-        message.save()
+        message.save(update_fields=["status", "last_error", "payload", "updated_at"])
 
     def _aggregate_items_by_sku(self, items: list[dict]) -> dict[str, dict]:
         """
@@ -273,6 +273,10 @@ class StockCommitHandler:
     Handler para confirmação de reservas de estoque.
 
     Topic: stock.commit
+
+    Cada hold é fulfillado individualmente. Se algum falhar, o directive
+    é marcado como "failed" para que o reaper/retry possa reprocessar.
+    Holds já fulfillados são idempotentes (não falham em re-execução).
     """
 
     topic = "stock.commit"
@@ -302,13 +306,36 @@ class StockCommitHandler:
             except Session.DoesNotExist:
                 holds = []
 
+        if not holds:
+            message.status = "done"
+            message.save(update_fields=["status", "updated_at"])
+            return
+
+        errors: list[str] = []
+        fulfilled: list[str] = []
+
         for hold in holds:
             hold_id = hold.get("hold_id")
-            if hold_id:
+            if not hold_id:
+                continue
+            try:
                 self.backend.fulfill_hold(hold_id, reference=order_ref)
+                fulfilled.append(hold_id)
+            except Exception as exc:
+                error_msg = f"{hold_id}: {exc}"
+                errors.append(error_msg)
+                logger.error(
+                    "StockCommitHandler: fulfill failed for hold %s (order %s): %s",
+                    hold_id, order_ref, exc,
+                )
 
-        message.status = "done"
-        message.save()
+        if errors:
+            message.status = "failed"
+            message.last_error = f"Fulfill errors ({len(errors)}/{len(holds)}): {'; '.join(errors[:5])}"[:500]
+            message.save(update_fields=["status", "last_error", "updated_at"])
+        else:
+            message.status = "done"
+            message.save(update_fields=["status", "updated_at"])
 
 
 

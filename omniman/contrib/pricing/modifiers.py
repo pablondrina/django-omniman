@@ -65,9 +65,11 @@ class ItemPricingModifier:
                     })
 
             # 2. Calcula line_total_q
+            from commons.monetary import monetary_mult
+
             qty = Decimal(str(item.get("qty", 0)))
             price = item.get("unit_price_q", 0)
-            calculated_total = int(qty * price)
+            calculated_total = monetary_mult(qty, price)
 
             if item.get("line_total_q") != calculated_total:
                 item["line_total_q"] = calculated_total

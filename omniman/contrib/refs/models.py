@@ -4,6 +4,7 @@ Models para contrib/refs.
 
 import uuid
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Ref(models.Model):
@@ -21,43 +22,49 @@ class Ref(models.Model):
     ref_type = models.CharField(
         max_length=32,
         db_index=True,
+        verbose_name=_("tipo de referência"),
         help_text="Slug do RefType (ex: POS_TABLE, ORDER_NUMBER)",
     )
 
     target_kind = models.CharField(
         max_length=8,
         choices=[("SESSION", "Session"), ("ORDER", "Order")],
+        verbose_name=_("tipo de alvo"),
         help_text="Tipo do target associado",
     )
 
     target_id = models.UUIDField(
         db_index=True,
+        verbose_name=_("ID do alvo"),
         help_text="ID do target (Session.id ou Order.id)",
     )
 
     value = models.CharField(
         max_length=64,
         db_index=True,
+        verbose_name=_("valor"),
         help_text="Valor normalizado do localizador (ex: '12', '001', 'ABC123')",
     )
 
     scope = models.JSONField(
         default=dict,
+        verbose_name=_("escopo"),
         help_text="Scope de unicidade (ex: {store_id: 1, business_date: '2025-12-19'})",
     )
 
     is_active = models.BooleanField(
         default=True,
         db_index=True,
+        verbose_name=_("ativo"),
         help_text="Se False, Ref está desativada (não resolve)",
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("criado em"))
 
     class Meta:
         app_label = "refs"
-        verbose_name = "Ref"
-        verbose_name_plural = "Refs"
+        verbose_name = _("Referência")
+        verbose_name_plural = _("Referências")
         indexes = [
             models.Index(
                 fields=["ref_type", "value", "is_active"],
@@ -93,29 +100,33 @@ class RefSequence(models.Model):
     sequence_name = models.CharField(
         max_length=32,
         db_index=True,
+        verbose_name=_("nome da sequência"),
         help_text="Nome da sequência (geralmente o RefType.slug)",
     )
 
     scope_hash = models.CharField(
         max_length=64,
         db_index=True,
+        verbose_name=_("hash do escopo"),
         help_text="Hash do scope para particionamento",
     )
 
     scope = models.JSONField(
         default=dict,
+        verbose_name=_("escopo"),
         help_text="Scope original (para debug/auditoria)",
     )
 
     last_value = models.PositiveIntegerField(
         default=0,
+        verbose_name=_("último valor"),
         help_text="Último valor gerado nesta sequência",
     )
 
     class Meta:
         app_label = "refs"
-        verbose_name = "Ref Sequence"
-        verbose_name_plural = "Ref Sequences"
+        verbose_name = _("Sequência de Referência")
+        verbose_name_plural = _("Sequências de Referência")
         constraints = [
             models.UniqueConstraint(
                 fields=["sequence_name", "scope_hash"],

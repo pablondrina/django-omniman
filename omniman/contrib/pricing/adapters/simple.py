@@ -6,7 +6,12 @@ Busca preço diretamente do model Product.price_q.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
+
+from django.core.exceptions import ObjectDoesNotExist
+
+logger = logging.getLogger(__name__)
 
 
 class SimplePricingBackend:
@@ -47,7 +52,10 @@ class SimplePricingBackend:
         try:
             product = self.get_product(sku)
             return product.price_q
+        except ObjectDoesNotExist:
+            return None
         except Exception:
+            logger.exception("Unexpected error in SimplePricingBackend.get_price for sku=%s", sku)
             return None
 
 
@@ -109,14 +117,20 @@ class ChannelPricingBackend:
                 listing = self.get_listing(sku, channel.code)
                 if hasattr(listing, "price_q") and listing.price_q is not None:
                     return listing.price_q
-            except Exception:
+            except ObjectDoesNotExist:
                 pass
+            except Exception:
+                logger.exception("Unexpected error in ChannelPricingBackend.get_price listing lookup for sku=%s", sku)
+                pass  # Fall through to product fallback
 
         # Fallback para product
         try:
             product = self.get_product(sku)
             return product.price_q
+        except ObjectDoesNotExist:
+            return None
         except Exception:
+            logger.exception("Unexpected error in ChannelPricingBackend.get_price product fallback for sku=%s", sku)
             return None
 
 

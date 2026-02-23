@@ -225,6 +225,10 @@ REST_FRAMEWORK = {
 
 Full documentation: [pablondrina.github.io/django-omniman](https://pablondrina.github.io/django-omniman)
 
+## Shopman Suite
+
+Omniman is part of the [Shopman suite](https://github.com/pablondrina). Shared admin utilities are available via [django-shopman-commons](https://github.com/pablondrina/django-shopman-commons).
+
 ## Requirements
 
 - Python 3.11+

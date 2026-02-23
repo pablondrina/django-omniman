@@ -13,6 +13,7 @@ Este adapter conecta o contrib/customer ao Guestman, usando a API pública:
 from __future__ import annotations
 
 import logging
+import threading
 
 from omniman.contrib.customer.protocols import (
     AddressInfo,
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 def _guestman_available() -> bool:
     """Check if Guestman is installed."""
     try:
-        from guestman import CustomerService
+        from guestman.services import customer as CustomerService  # noqa: F811
         return True
     except ImportError:
         return False
@@ -51,7 +52,7 @@ class GuestmanBackend:
             logger.warning("get_customer: Guestman not installed")
             return None
 
-        from guestman import CustomerService
+        from guestman.services import customer as CustomerService
 
         cust = CustomerService.get(code)
         if not cust:
@@ -114,7 +115,7 @@ class GuestmanBackend:
                 message="Guestman is not installed",
             )
 
-        from guestman import CustomerService
+        from guestman.services import customer as CustomerService
 
         validation = CustomerService.validate(code)
 
@@ -140,7 +141,7 @@ class GuestmanBackend:
         if not _guestman_available():
             return None
 
-        from guestman import CustomerService
+        from guestman.services import customer as CustomerService
         return CustomerService.price_list(customer_code)
 
     def get_customer_context(self, code: str) -> CustomerContext | None:
@@ -228,6 +229,7 @@ class GuestmanBackend:
 
 
 # Singleton factory
+_lock = threading.Lock()
 _backend_instance: GuestmanBackend | None = None
 
 
@@ -235,5 +237,13 @@ def get_customer_backend() -> GuestmanBackend:
     """Return singleton instance of GuestmanBackend."""
     global _backend_instance
     if _backend_instance is None:
-        _backend_instance = GuestmanBackend()
+        with _lock:
+            if _backend_instance is None:  # double-checked
+                _backend_instance = GuestmanBackend()
     return _backend_instance
+
+
+def reset_customer_backend() -> None:
+    """Reset singleton (for tests)."""
+    global _backend_instance
+    _backend_instance = None

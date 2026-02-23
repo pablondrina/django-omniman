@@ -18,12 +18,8 @@ def get_efi_backend():
     from .efi import EfiPixBackend
     return EfiPixBackend
 
-# Alias for backwards compatibility
-get_pix_backend = get_efi_backend
-
 __all__ = [
     "MockPaymentBackend",
     "get_stripe_backend",
     "get_efi_backend",
-    "get_pix_backend",  # Deprecated alias
 ]

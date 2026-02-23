@@ -5,7 +5,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import ChannelViewSet, DirectiveViewSet, OrderViewSet, SessionViewSet
-from .sse import order_stream_view
+from .polling import order_stream_view
 
 
 def health_check(request):

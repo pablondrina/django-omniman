@@ -18,5 +18,3 @@ Uso:
 # Lazy imports to avoid circular dependency during Django startup
 # Use: from omniman.contrib.refs.services import attach_ref
 # Or: from omniman.contrib.refs.exceptions import RefError
-
-default_app_config = "omniman.contrib.refs.apps.RefsConfig"

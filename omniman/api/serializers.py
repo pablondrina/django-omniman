@@ -252,6 +252,6 @@ class OrderSerializer(serializers.ModelSerializer):
 class DirectiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Directive
-        fields = ("id", "topic", "status", "payload", "created_at")
+        fields = ("id", "topic", "status", "attempts", "created_at", "updated_at")
 
 

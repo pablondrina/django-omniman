@@ -6,10 +6,8 @@ O cliente JavaScript faz polling a cada 3 segundos.
 """
 from __future__ import annotations
 
-import json
-
-from django.http import JsonResponse
 from django.contrib.admin.views.decorators import staff_member_required
+from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 from omniman.models import Order

@@ -3,12 +3,13 @@ Django AppConfig para contrib/refs.
 """
 
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
 
 class RefsConfig(AppConfig):
     name = "omniman.contrib.refs"
     label = "refs"
-    verbose_name = "Omniman Refs"
+    verbose_name = _("Referências")
 
     def ready(self):
         """Registra RefTypes padrão quando a app carrega."""

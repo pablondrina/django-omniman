@@ -636,7 +636,7 @@ class EdgeCaseTests(TestCase):
         self.assertTrue(order.can_transition_to(Order.STATUS_CONFIRMED))
         self.assertTrue(order.can_transition_to(Order.STATUS_CANCELLED))
 
-    def test_empty_channel_config(self) -> None:
+    def test_empty_channel_config_with_get_transitions(self) -> None:
         """Canal com config vazio usa defaults (config={} é o default)."""
         empty_config_channel = Channel.objects.create(
             code="empty_config",

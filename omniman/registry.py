@@ -225,6 +225,7 @@ register_issue_resolver = _registry.register_issue_resolver
 get_issue_resolver = _registry.get_issue_resolver
 get_issue_resolvers = _registry.get_issue_resolvers
 clear = _registry.clear
+reset = _registry.clear  # Alias para testes — mesmo que clear()
 
 
 

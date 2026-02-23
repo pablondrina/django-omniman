@@ -139,6 +139,17 @@ class PaymentRefundHandler:
             message.save()
             return
 
+        # Idempotency check: verify current status before refunding
+        current_status = self.backend.get_status(intent_id)
+        if current_status.status == "refunded":
+            logger.info(
+                f"PaymentRefundHandler: Already refunded. "
+                f"intent_id={intent_id}, order_ref={order_ref}"
+            )
+            message.status = "done"
+            message.save()
+            return
+
         result = self.backend.refund(
             intent_id,
             amount_q=amount_q,

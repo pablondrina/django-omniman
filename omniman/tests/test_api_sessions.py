@@ -13,7 +13,11 @@ from omniman.models import Channel, Directive, IdempotencyKey, Session
 class SessionApiTests(TestCase):
     def setUp(self) -> None:
         super().setUp()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.user = User.objects.create_user("testuser", password="testpass")
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
         registry.clear()
 
     def tearDown(self) -> None:

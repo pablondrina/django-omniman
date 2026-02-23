@@ -19,6 +19,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Callable
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from omniman.contrib.stock.protocols import (
     Alternative,
     AvailabilityResult,
@@ -89,12 +91,15 @@ class StockmanBackend:
 
         try:
             product = self.get_product(sku)
-        except Exception:
+        except ObjectDoesNotExist:
             return AvailabilityResult(
                 available=False,
                 available_qty=Decimal("0"),
                 message=f"Produto não encontrado: {sku}",
             )
+        except Exception:
+            logger.exception("Unexpected error checking availability for %s", sku)
+            raise
 
         available = stock.available(product, target_date=target_date)
 
@@ -130,12 +135,15 @@ class StockmanBackend:
 
         try:
             product = self.get_product(sku)
-        except Exception:
+        except ObjectDoesNotExist:
             return HoldResult(
                 success=False,
                 error_code="product_not_found",
                 message=f"Produto não encontrado: {sku}",
             )
+        except Exception:
+            logger.exception("Unexpected error resolving product for hold on %s", sku)
+            raise
 
         try:
             # Stockman API: stock.hold(quantity, product, target_date, purpose, expires_at, **metadata)
@@ -200,39 +208,48 @@ class StockmanBackend:
         1. Confirm (PENDING -> CONFIRMED) se ainda pending
         2. Fulfill (CONFIRMED -> FULFILLED) criando Move de saída
 
+        Idempotência:
+        - Hold já FULFILLED → silencioso (sucesso, não levanta exceção)
+        - Hold não encontrado → levanta exceção
+        - Hold em status inválido (RELEASED) → levanta exceção
+
         Stockman API:
         - stock.confirm(hold_id) -> Hold
         - stock.fulfill(hold_id, reference, user) -> Move
         """
         if not _stockman_available():
-            logger.warning("fulfill_hold: Stockman not installed, cannot fulfill hold %s", hold_id)
-            return
+            raise ImportError("Stockman não está instalado. Instale com: pip install django-stockman")
 
         from stockman.service import Stock as stock
         from stockman.models import Hold
         from stockman.models.enums import HoldStatus
         from stockman.exceptions import StockError
 
+        # Buscar hold para verificar status
+        pk = int(hold_id.split(":")[1])
         try:
-            # Buscar hold para verificar status
-            pk = int(hold_id.split(":")[1])
             hold = Hold.objects.get(pk=pk)
-
-            # Se ainda PENDING, confirmar primeiro
-            if hold.status == HoldStatus.PENDING:
-                try:
-                    stock.confirm(hold_id)
-                except StockError:
-                    pass  # Já confirmado ou outro erro
-
-            # Fulfill
-            stock.fulfill(hold_id, reference=reference)
-        except StockError as e:
-            logger.warning("fulfill_hold: StockError for hold %s: %s", hold_id, e)
         except Hold.DoesNotExist:
-            logger.warning("fulfill_hold: Hold %s not found", hold_id)
-        except Exception as e:
-            logger.warning("fulfill_hold: Failed to fulfill hold %s: %s", hold_id, e)
+            raise StockError("HOLD_NOT_FOUND", hold_id=hold_id) from None
+
+        # Já fulfillado — idempotente
+        if hold.status == HoldStatus.FULFILLED:
+            logger.debug("fulfill_hold: hold %s already fulfilled, skipping.", hold_id)
+            return
+
+        # Se ainda PENDING, confirmar primeiro
+        if hold.status == HoldStatus.PENDING:
+            try:
+                stock.confirm(hold_id)
+            except StockError:
+                # Pode ter sido confirmado por outra thread entre o check e o confirm.
+                # Refresh e continua.
+                hold.refresh_from_db()
+                if hold.status not in (HoldStatus.CONFIRMED, HoldStatus.FULFILLED):
+                    raise
+
+        # Fulfill — falhas aqui propagam para o handler decidir retry
+        stock.fulfill(hold_id, reference=reference)
 
     def get_alternatives(self, sku: str, quantity: Decimal) -> list[Alternative]:
         """
