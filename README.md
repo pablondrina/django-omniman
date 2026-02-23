@@ -2,100 +2,60 @@
 
 [![PyPI version](https://badge.fury.io/py/django-omniman.svg)](https://badge.fury.io/py/django-omniman)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Django 5.0+](https://img.shields.io/badge/django-5.0+-green.svg)](https://www.djangoproject.com/)
+[![Django 5.2+](https://img.shields.io/badge/django-5.2+-green.svg)](https://www.djangoproject.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Alpha Software**: API may change between versions. Use in production with care.
 
-**A headless omnichannel order hub for Django.**
+**Headless omnichannel order management hub for Django.** Omniman turns any Django
+project into an order orchestrator -- POS, e-commerce, iFood, Rappi, or any channel
+that produces orders.
 
-```
-Session (mutable) → Order (immutable) → Directive (async)
-```
+## Key Concepts
 
-## Philosophy
+- **Session** -- mutable pre-commit state (cart, tab, draft). Rev-versioned for
+  optimistic concurrency. Modified through `ModifyService`.
+- **Order** -- immutable snapshot sealed at commit time. The canonical source of truth.
+  Status transitions enforced by a per-channel state machine.
+- **Directive** -- async side-effect task (stock reservation, payment capture,
+  notification). At-least-once semantics; handlers must be idempotent.
+- **Channel** -- logical origin of orders. Each channel defines pricing policy,
+  edit policy, required checks, and status flow.
 
-> **Warning**: Omniman is extremely flexible. This flexibility can lead to incorrect
-> implementations if you don't understand the contracts below.
-> [Full philosophy and invariants](https://pablondrina.github.io/django-omniman/concepts/philosophy.html).
+## Quick Start (5 minutes)
 
-Every decision follows **SIREL**:
-
-| Principle | Question |
-|-----------|----------|
-| **(SI)mple** | Can this be done simpler? |
-| **(R)obust** | What if this runs twice? What if data is stale? |
-| **(EL)egant** | Is the API intuitive? Does it follow Django patterns? |
-
-### The Three Contracts
-
-**1. Kernel is headless and agnostic.** No opinions on your catalog, customers, UI, or payment provider. Channels abstract away origin differences.
-
-**2. Everything goes through Services.** Never modify Session fields directly. `ModifyService` increments `rev`, invalidates stale checks, and runs Modifiers. Skipping it breaks consistency guarantees.
-
-**3. Side effects are Directives.** Stock reservations, payments, notifications — all happen asynchronously via Directives with at-least-once semantics. Handlers **must** be idempotent.
-
-### Common Mistakes
-
-| Mistake | What breaks | Do this instead |
-|---------|-------------|-----------------|
-| Modify Session without `ModifyService` | `rev` doesn't increment, checks stay stale | Always use `ModifyService.modify_session()` |
-| Commit without `idempotency_key` | Duplicate orders on retry | Always pass `idempotency_key` in production |
-| IO in Validators or Modifiers | Unpredictable failures, untestable code | Validators are pure gates; Modifiers are pure transforms |
-| Non-idempotent Directive handler | Duplicate stock moves, double charges | Check if already processed before acting |
-| Ignore `pricing_policy` in Modifier | External prices silently overwritten | Check `session.pricing_policy` before repricing |
-| Write checks without `expected_rev` | Race conditions in concurrent edits | Use `SessionWriteService.write_check(expected_rev=...)` |
-
-The kernel enforces [14 invariants](https://pablondrina.github.io/django-omniman/concepts/invariants.html) — if your code violates any, it's a bug.
-
-## What Omniman IS
-
-- A **headless kernel** for order management
-- A **protocol-based registry** for extensibility
-- A **rev-based versioning system** for stale-safe writes
-- An **audit-first** architecture with immutable orders
-
-## What Omniman is NOT
-
-- **Not a complete e-commerce solution** — no product catalog, no customer management
-- **Not an opinionated UI** — the kernel is headless; you build the UI
-- **Not a payment gateway** — use contrib/payment or bring your own
-- **Not a stock manager** — use contrib/stock or bring your own
-
-## Installation
+### 1. Install
 
 ```bash
 pip install django-omniman
 ```
 
-For enhanced admin UI (recommended):
-
-```bash
-pip install django-omniman[admin]
-```
+### 2. Add to INSTALLED_APPS
 
 ```python
 # settings.py
 INSTALLED_APPS = [
-    # If using django-unfold for enhanced admin UI:
-    # "unfold",
-    # "unfold.contrib.filters",
+    # ...
     "rest_framework",
     "omniman",
 ]
 ```
 
+### 3. Run migrations
+
 ```bash
 python manage.py migrate
 ```
 
-## Quick Start
+### 4. Create a channel, add items, and commit
+
+Open a Django shell (`python manage.py shell`) and run:
 
 ```python
-from omniman.models import Channel, Session
+from omniman.models import Channel, Session, Order
 from omniman.services import ModifyService, CommitService
 
-# 1. Create a channel
+# Create a channel
 channel = Channel.objects.create(
     code="pos",
     name="Point of Sale",
@@ -103,139 +63,202 @@ channel = Channel.objects.create(
     edit_policy="open",
 )
 
-# 2. Create a session
+# Open a session
 session = Session.objects.create(
     channel=channel,
-    session_key="SESS-123",
+    session_key="DEMO-001",
 )
 
-# 3. Add items
-ModifyService.modify_session(
-    session_key="SESS-123",
+# Add items via ModifyService
+session = ModifyService.modify_session(
+    session_key="DEMO-001",
     channel_code="pos",
     ops=[
-        {"op": "add_line", "sku": "COFFEE", "qty": 2},
-        {"op": "add_line", "sku": "CROISSANT", "qty": 1},
+        {"op": "add_line", "sku": "COFFEE", "qty": 2, "unit_price_q": 550},
+        {"op": "add_line", "sku": "CROISSANT", "qty": 1, "unit_price_q": 850},
     ],
 )
 
-# 4. Commit (create order)
+# Check session state
+print(f"Rev: {session.rev}")          # Rev: 1
+print(f"Items: {len(session.items)}") # Items: 2
+
+# Commit -- creates an immutable Order
 result = CommitService.commit(
-    session_key="SESS-123",
+    session_key="DEMO-001",
     channel_code="pos",
-    idempotency_key="CHECKOUT-123",
+    idempotency_key="DEMO-CHECKOUT-001",
 )
 
-print(f"Order created: {result['order_ref']}")
+print(f"Order ref: {result['order_ref']}")   # ORD-20260223-XXXXXXXX
+print(f"Total (q): {result['total_q']}")     # 1950
+
+# Verify the Order
+order = Order.objects.get(ref=result["order_ref"])
+print(f"Status: {order.status}")             # new
+print(f"Items: {order.items.count()}")       # 2
 ```
 
-## Core Concepts
+Calling `CommitService.commit()` again with the same `idempotency_key` returns
+the cached result without creating a duplicate Order.
 
-### Channel
+## Architecture Overview
 
-A logical origin for orders (POS, e-commerce, iFood, etc.). Each channel has:
+```
+                     The Omniman Pipeline
+                     ====================
 
-- **pricing_policy**: `internal` (Omniman looks up prices) or `external` (you provide)
-- **edit_policy**: `open` (editable) or `locked` (read-only)
-- **status flow**: Custom order status transitions
+  Client          Omniman Kernel              Adapters / Handlers
+  ------          --------------              -------------------
 
-### Session
+  POST /modify -->  ModifyService
+                      apply ops
+                      run Modifiers  -------> PricingBackend.get_price()
+                      run Validators
+                      rev++, save
+                      enqueue directives ---> [stock.hold directive]
 
-Mutable pre-commit state (basket, tab, draft order, etc.).
+  (async)           StockHoldHandler -------> StockBackend.check_availability()
+                      write check result       StockBackend.create_hold()
 
-- Rev-based versioning for stale-safe writes
-- Checks and issues for validation
-- Converts to Order on commit
+  POST /commit -->  CommitService
+                      verify checks & rev
+                      verify no blocking issues
+                      run Validators
+                      create Order (immutable)
+                      enqueue directives ---> [stock.commit, payment.capture]
 
-### Order
+  (async)           StockCommitHandler -----> StockBackend.fulfill_hold()
+                    PaymentCaptureHandler --> PaymentBackend.capture()
+```
 
-Immutable snapshot created at commit. The source of truth.
+Sessions are mutable. Orders are immutable. Side effects are Directives.
 
-- Cannot be modified after creation
-- Full audit trail via OrderEvent
-- Status transitions per channel config
+## Configuration
 
-### Directive
-
-Async task for side effects (stock, payment, notifications).
-
-- At-least-once semantics
-- Handlers must be idempotent
-
-## Contrib Modules
-
-Optional modules for extended functionality. Only add to `INSTALLED_APPS` if you need them.
-
-| Module | Purpose | Has Migrations |
-|--------|---------|----------------|
-| `omniman.contrib.pricing` | Price calculation | No |
-| `omniman.contrib.stock` | Inventory management | No |
-| `omniman.contrib.payment` | Payment processing | No |
-| `omniman.contrib.refs` | External references/tagging | **Yes** |
-| `omniman.contrib.notifications` | Multi-channel notifications | No |
-
-**Note:** `omniman.contrib.refs` has its own database tables. Only add it to `INSTALLED_APPS` and run `migrate` if you need external reference/tagging functionality.
+Omniman settings live under the `OMNIMAN` dict in `settings.py`:
 
 ```python
-# settings.py - with refs module
-INSTALLED_APPS = [
-    "unfold",
-    "unfold.contrib.filters",
-    "rest_framework",
-    "omniman",
-    "omniman.contrib.refs",  # Optional: only if you need refs
-]
+OMNIMAN = {
+    # DRF permission classes for public API endpoints
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    # DRF permission classes for admin-only endpoints (directives)
+    "ADMIN_PERMISSION_CLASSES": ["rest_framework.permissions.IsAdminUser"],
+}
+```
+
+Per-channel behavior is configured via `Channel.config`:
+
+```python
+channel = Channel.objects.create(
+    code="ecommerce",
+    name="E-commerce",
+    config={
+        "required_checks_on_commit": ["stock"],
+        "checks": {
+            "stock": {"directive_topic": "stock.hold"}
+        },
+        "post_commit_directives": ["stock.commit", "payment.capture"],
+        "order_flow": {
+            "transitions": {
+                "new": ["confirmed", "cancelled"],
+                "confirmed": ["processing", "cancelled"],
+                "processing": ["ready"],
+                "ready": ["dispatched", "completed"],
+                "dispatched": ["delivered"],
+                "delivered": ["completed", "returned"],
+            }
+        },
+    },
+)
 ```
 
 ## API Endpoints
 
 ```
-GET    /api/health                 Health check
-GET    /api/channels/              List channels
-GET    /api/sessions/              List sessions
-POST   /api/sessions/              Create session
-POST   /api/sessions/{key}/modify/ Modify session
-POST   /api/sessions/{key}/resolve/ Resolve issue
-POST   /api/sessions/{key}/commit/ Commit session
-GET    /api/orders/                List orders
-GET    /api/orders/{ref}/          Get order
-GET    /api/orders/stream          SSE stream (real-time)
-GET    /api/directives/            List directives
+GET    /api/health                    Health check
+GET    /api/channels                  List channels
+GET    /api/sessions                  List sessions
+POST   /api/sessions                  Create session
+GET    /api/sessions/{key}            Get session (requires channel_code param)
+POST   /api/sessions/{key}/modify     Modify session
+POST   /api/sessions/{key}/resolve    Resolve issue
+POST   /api/sessions/{key}/commit     Commit session -> Order
+GET    /api/orders                    List orders
+GET    /api/orders/{ref}              Get order
+GET    /api/orders/stream             Polling endpoint for new orders
+GET    /api/directives                List directives (admin only)
 ```
 
-## Throttling Configuration
-
-Configure API rate limiting in your settings:
+Include in your `urls.py`:
 
 ```python
-REST_FRAMEWORK = {
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
-        'omniman_commit': '60/minute',  # Specific limit for commits
-    }
-}
+from django.urls import include, path
+
+urlpatterns = [
+    path("api/", include("omniman.api.urls")),
+]
 ```
 
-## Documentation
+## Contrib Modules
 
-Full documentation: [pablondrina.github.io/django-omniman](https://pablondrina.github.io/django-omniman)
+Optional modules for extended functionality:
 
-## Shopman Suite
+| Module | Purpose | Needs `INSTALLED_APPS` |
+|--------|---------|------------------------|
+| `omniman.contrib.pricing` | Price calculation modifiers | No |
+| `omniman.contrib.stock` | Inventory check/hold/fulfill | No |
+| `omniman.contrib.payment` | Payment capture/refund | No |
+| `omniman.contrib.customer` | Customer lookup/validation | No |
+| `omniman.contrib.refs` | External locators (tables, tickets) | **Yes** (has migrations) |
+| `omniman.contrib.notifications` | Multi-channel notifications | No |
 
-Omniman is part of the [Shopman suite](https://github.com/pablondrina). Shared admin utilities are available via [django-shopman-commons](https://github.com/pablondrina/django-shopman-commons).
+Each contrib module ships noop adapters for standalone development and testing:
+
+```python
+from omniman.contrib.pricing.adapters.noop import NoopPricingModifier
+from omniman.contrib.stock.adapters.noop import NoopStockBackend
+from omniman.contrib.customer.adapters.noop import NoopCustomerBackend
+```
+
+## Integration with the Shopman Suite
+
+Omniman is the order management hub of the
+[Shopman suite](https://github.com/pablondrina). It integrates with sibling
+packages through adapter protocols:
+
+| Package | Role | Omniman adapter |
+|---------|------|-----------------|
+| [django-stockman](https://github.com/pablondrina/django-stockman) | Inventory management | `StockmanBackend` in `contrib/stock` |
+| [django-offerman](https://github.com/pablondrina/django-offerman) | Product catalog & pricing | `OffermanPricingBackend` in `contrib/pricing` |
+| [django-guestman](https://github.com/pablondrina/django-guestman) | Customer identity & insights | `GuestmanBackend` in `contrib/customer` |
+| [django-doorman](https://github.com/pablondrina/django-doorman) | Authentication & permissions | DRF permission classes on API views |
+
+Install suite integrations as extras:
+
+```bash
+pip install django-omniman[stockman,offerman,guestman]
+```
+
+Shared admin utilities are available via
+[django-shopman-commons](https://github.com/pablondrina/django-shopman-commons).
+
+## Further Reading
+
+- [CONTRACTS.md](CONTRACTS.md) -- public API surface, invariants, and integration points
+- [docs/concepts/pipeline.md](docs/concepts/pipeline.md) -- the full modify/commit/directive pipeline
+- [docs/concepts/directives.md](docs/concepts/directives.md) -- directive model and handler patterns
+- [docs/concepts/sessions.md](docs/concepts/sessions.md) -- session lifecycle
+- [docs/concepts/orders.md](docs/concepts/orders.md) -- order model and status flow
+- [docs/concepts/channels.md](docs/concepts/channels.md) -- channel configuration
 
 ## Requirements
 
 - Python 3.11+
-- Django 5.0+
+- Django 5.2+
 - Django REST Framework 3.15+
-- django-unfold 0.49+ (optional, for enhanced admin UI)
+- django-unfold 0.80+ (optional, for enhanced admin UI)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License -- see [LICENSE](LICENSE) for details.
